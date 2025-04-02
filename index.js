@@ -14,13 +14,13 @@ app.use(
 );
 app.use(express.json());
 
-app.get("/subscribe/:address", async (req, res) => {
+app.get("/emails/subscribe/:address", async (req, res) => {
     const { address } = req.params;
 
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
-    res.setHeader("X-Accel-Buffering", "no"); // Disable buffering
+    res.setHeader("X-Accel-Buffering", "no");
 
     // Send initial comments or empty data to prevent initial Cloudflare timeout
     res.write(": keep-alive\n\n");
@@ -53,13 +53,39 @@ app.get("/subscribe/:address", async (req, res) => {
     });
 });
 
-app.get("/emails/:address", async (req, res) => {
+app.get("/emails/for/:address", async (req, res) => {
     const { address } = req.params;
     const emails = await redisClient.hGetAll(address);
     const parsedEmails = Object.values(emails).map((email) =>
         JSON.parse(email)
     );
     res.json(parsedEmails);
+});
+
+app.get("/emails/:id", async (req, res) => {
+    const { id } = req.params;
+    const address = id.split(":")[0];
+    const email = await redisClient.hGet(address, id);
+    const parsedEmail = JSON.parse(email);
+    res.json(parsedEmail);
+});
+
+app.delete("/emails/:id", async (req, res) => {
+    const { id } = req.params;
+    const address = id.split(":")[0];
+    try {
+        await redisClient.hDel(address, id);
+        res.json({
+            success: true,
+            messageId: id,
+        });
+    } catch (error) {
+        res.json({
+            success: false,
+            error: "Failed to delete!",
+            messageId: id,
+        });
+    }
 });
 
 app.listen(PORT, () => {
